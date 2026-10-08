@@ -209,7 +209,10 @@ function Get-DeepScan {
 
 # ---- main ----
 $cfg = Load-Config
-if (-not $cfg.host_id) { $cfg.host_id = [guid]::NewGuid().ToString(); Save-Config $cfg }
+# NB: direct property assignment ($cfg.foo = ...) fails on ConvertFrom-Json
+# PSCustomObjects in Windows PowerShell 5.1 ("property cannot be found").
+# Always use Add-Member -Force for new properties.
+if (-not $cfg.host_id) { $cfg | Add-Member -NotePropertyName 'host_id' -NotePropertyValue ([guid]::NewGuid().ToString()) -Force; Save-Config $cfg }
 
 if ($cfg.install_token -and -not $cfg.enrolled) {
     try {
@@ -217,7 +220,7 @@ if ($cfg.install_token -and -not $cfg.enrolled) {
             p_token = $cfg.install_token; p_host_id = $cfg.host_id
             p_label = $cfg.label; p_platform = 'windows'; p_os = $cfg.os }
         if ($res.ok) {
-            $cfg.enrolled = $true
+            $cfg | Add-Member -NotePropertyName 'enrolled' -NotePropertyValue $true -Force
             $cfg.PSObject.Properties.Remove('install_token')
             Save-Config $cfg
         } else { Write-Warning "claim failed: $($res.error)" }
