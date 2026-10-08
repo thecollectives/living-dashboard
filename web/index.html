@@ -97,6 +97,32 @@ table.sheet tr:hover td{background:rgba(255,255,255,.015)}
 .infogrid .k{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
 .empty{color:var(--dim);text-align:center;padding:30px;font-size:13px}
 canvas.spark{width:100%;height:64px;display:block}
+.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px}
+.field label{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;
+  letter-spacing:.06em;margin-bottom:6px}
+.field input,.field textarea{width:100%;background:var(--panel2);border:1px solid var(--border);
+  color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--green)}
+.field textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;
+  min-height:110px;resize:vertical}
+.btn{background:rgba(63,185,80,.14);border:1px solid var(--green);color:var(--green);
+  border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{background:rgba(63,185,80,.25)}
+.btn:disabled{opacity:.5;cursor:default}
+.radio-row{display:flex;gap:18px;margin:2px 0 12px;font-size:13px}
+.radio-row label{cursor:pointer;display:flex;align-items:center;gap:6px}
+.codeblock{position:relative;background:#0d1117;border:1px solid var(--border);
+  border-radius:8px;padding:12px 70px 12px 14px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:12.5px;word-break:break-all;margin:8px 0;color:#c9d4dc}
+.codeblock .abtn{position:absolute;top:8px;right:8px}
+.joblog{background:#0d1117;border:1px solid var(--border);border-radius:8px;
+  padding:12px 14px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;
+  white-space:pre-wrap;word-break:break-word;max-height:320px;overflow-y:auto;
+  margin-top:12px;color:#c9d4dc}
+.statusbar{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:13px}
+.st-ok{color:var(--green)} .st-err{color:var(--red)} .st-run{color:var(--blue)}
+.method{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.method + .method{margin-top:14px}
 footer{color:var(--dim);font-size:11px;text-align:center;padding:20px}
 </style>
 </head>
@@ -106,6 +132,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;padding:20px}
   <nav>
     <a href="#/" id="nav-fleet">Fleet</a>
     <a href="#/new" id="nav-new">What's New <span id="nav-new-count"></span></a>
+    <a href="#/add" id="nav-add">Add host</a>
   </nav>
   <div class="meta"><span class="livedot"></span><span id="updated">connecting…</span></div>
 </header>
@@ -159,7 +186,7 @@ async function viewFleet(){
       </div></div>`;
   }
   html += '</div>';
-  if (!STATE.hosts.length) html = '<div class="empty">No hosts enrolled yet.<br>Run the installer on a host to begin.</div>';
+  if (!STATE.hosts.length) html = '<div class="empty">No hosts enrolled yet.<br><a href="#/add">Add a host</a> to begin.</div>';
   app.innerHTML = html;
   document.getElementById('host-count').textContent =
     STATE.hosts.length + ' host' + (STATE.hosts.length===1?'':'s');
@@ -333,10 +360,123 @@ async function drawSpark(id, host_id){
   }catch(e){}
 }
 
+// ---------------- add host ----------------
+let addActive = false, addPollTimer = null, addJobId = null, lastTokenCmds = null;
+function stopAddPoll(){ if(addPollTimer){ clearInterval(addPollTimer); addPollTimer = null; } }
+function authSel(){ const r=document.querySelector('input[name="en-auth"]:checked'); return r?r.value:'password'; }
+function toggleAuth(){
+  const k = authSel()==='key';
+  document.getElementById('en-pw-wrap').style.display = k?'none':'';
+  document.getElementById('en-key-wrap').style.display = k?'':'none';
+}
+function viewAdd(){
+  setNav('add');
+  app.innerHTML = `<div class="sect"><div class="secthead"><h2>Add host</h2></div><div class="sectbody">
+  <p style="color:var(--dim);margin-top:0">Three ways to enroll a host. SSH push installs the watcher for you; the token one-liner and manual download are for hosts you touch yourself.</p>
+
+  <div class="method"><div class="secthead"><h2>A · SSH push <span style="color:var(--dim);font-weight:400">— the dashboard SSHes in and installs</span></h2></div>
+  <div class="sectbody">
+    <div class="formgrid">
+      <div class="field"><label>Host address</label><input id="en-host" placeholder="192.168.1.50 or host.tailnet" autocomplete="off"></div>
+      <div class="field"><label>SSH port</label><input id="en-port" value="22" inputmode="numeric" autocomplete="off"></div>
+      <div class="field"><label>SSH username</label><input id="en-user" placeholder="brrew" autocomplete="off"></div>
+      <div class="field"><label>Label (optional)</label><input id="en-label" placeholder="defaults to host address" autocomplete="off"></div>
+    </div>
+    <div class="radio-row">
+      <label><input type="radio" name="en-auth" value="password" checked onchange="toggleAuth()"> Password</label>
+      <label><input type="radio" name="en-auth" value="key" onchange="toggleAuth()"> Private key</label>
+    </div>
+    <div class="field" id="en-pw-wrap"><label>SSH password</label><input id="en-pw" type="password" autocomplete="new-password" placeholder="used once for this install, never stored"></div>
+    <div class="field" id="en-key-wrap" style="display:none"><label>Private key (PEM)</label><textarea id="en-key" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" spellcheck="false"></textarea></div>
+    <div style="margin-top:12px"><button class="btn" id="en-go" onclick="submitEnroll()">Enroll via SSH</button></div>
+    <div id="en-result"></div>
+  </div></div>
+
+  <div class="method"><div class="secthead"><h2>B · One-time token <span style="color:var(--dim);font-weight:400">— run one command on the host yourself</span></h2></div>
+  <div class="sectbody">
+    <div class="formgrid"><div class="field"><label>Label</label><input id="tk-label" placeholder="hostname" autocomplete="off"></div></div>
+    <button class="btn" onclick="genToken()">Generate token</button>
+    <div id="tk-result"></div>
+    <p style="color:var(--dim);font-size:12px">Single-use, expires in 24h. Run the command on the host — it phones home and registers itself.</p>
+  </div></div>
+
+  <div class="method"><div class="secthead"><h2>C · Manual download</h2></div>
+  <div class="sectbody">
+    <p style="color:var(--dim);margin-top:0">Grab the installer, then run it with a token generated in section B.</p>
+    <p><a href="/install/install.sh" download>install.sh</a> (Linux/macOS) · <a href="/install/install.ps1" download>install.ps1</a> (Windows) · <a href="/install/" target="_blank" rel="noopener">browse /install/</a></p>
+  </div></div>
+
+  </div></div>`;
+}
+async function submitEnroll(){
+  const host=document.getElementById('en-host').value.trim();
+  const port=document.getElementById('en-port').value.trim()||'22';
+  const username=document.getElementById('en-user').value.trim();
+  const label=document.getElementById('en-label').value.trim();
+  const atype=authSel();
+  const secret=atype==='key'?document.getElementById('en-key').value:document.getElementById('en-pw').value;
+  const res=document.getElementById('en-result');
+  if(!host){ res.innerHTML='<div class="statusbar st-err">Enter a host address.</div>'; return; }
+  if(!username){ res.innerHTML='<div class="statusbar st-err">Enter the SSH username.</div>'; return; }
+  if(!secret){ res.innerHTML='<div class="statusbar st-err">Enter the '+(atype==='key'?'private key':'password')+'.</div>'; return; }
+  const btn=document.getElementById('en-go'); btn.disabled=true;
+  res.innerHTML='<div class="statusbar st-run"><span class="livedot"></span>Starting enrollment…</div><div class="joblog" id="en-log"></div>';
+  try{
+    const auth={type:atype}; auth[atype==='key'?'key':'password']=secret;
+    const r=await fetch('/living/enroll/jobs',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({host,port,username,label:label||undefined,auth})});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||('http '+r.status));
+    addJobId=d.job_id;
+    document.getElementById('en-pw').value='';
+    document.getElementById('en-key').value='';
+    stopAddPoll(); addPollTimer=setInterval(pollEnroll,2000); pollEnroll();
+  }catch(e){ btn.disabled=false;
+    res.innerHTML='<div class="statusbar st-err">Failed to start: '+esc(e.message)+'</div>'; }
+}
+async function pollEnroll(){
+  if(!addJobId) return;
+  const res=document.getElementById('en-result'); if(!res) return;
+  try{
+    const r=await fetch('/living/enroll/jobs/'+encodeURIComponent(addJobId));
+    const j=await r.json();
+    const log=(j.log||[]).map(esc).join('\n');
+    let banner;
+    if(j.status==='ok') banner='<div class="statusbar st-ok">Enrolled and checking in.</div>';
+    else if(j.status==='error') banner='<div class="statusbar st-err">Failed'+(j.error?': '+esc(j.error):'')+' <span style="color:var(--dim)">(stage: '+esc(j.stage||'?')+')</span></div>';
+    else banner='<div class="statusbar st-run"><span class="livedot"></span>'+esc('Working… stage: '+(j.stage||'starting'))+'</div>';
+    res.innerHTML=banner+'<div class="joblog">'+esc(log)+'</div>';
+    const lg=res.querySelector('.joblog'); if(lg) lg.scrollTop=lg.scrollHeight;
+    if(j.status!=='running'){ stopAddPoll(); document.getElementById('en-go').disabled=false; refresh({keep:true}); }
+  }catch(e){ /* keep polling */ }
+}
+async function genToken(){
+  const label=document.getElementById('tk-label').value.trim();
+  const res=document.getElementById('tk-result');
+  res.innerHTML='<div class="statusbar st-run"><span class="livedot"></span>Generating…</div>';
+  try{
+    const r=await fetch('/living/enroll/tokens',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({label:label||undefined})});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||('http '+r.status));
+    lastTokenCmds=d.one_liners;
+    res.innerHTML='<p style="font-size:12px;color:var(--dim)">Token for <b>'+esc(d.label)+'</b> · single-use · expires '+esc(d.expires_at)+'</p>'+
+      '<div class="codeblock">'+esc(d.one_liners.sh)+'<button class="abtn" onclick="copyCmd(\'sh\')">copy</button></div>'+
+      '<div class="codeblock">'+esc(d.one_liners.ps1)+'<button class="abtn" onclick="copyCmd(\'ps1\')">copy</button></div>';
+  }catch(e){ res.innerHTML='<div class="statusbar st-err">Failed: '+esc(e.message)+'</div>'; }
+}
+function copyCmd(which){ if(lastTokenCmds&&lastTokenCmds[which]) copyText(lastTokenCmds[which]); }
+function copyText(t){
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).catch(()=>{}); return; }
+  const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); }catch(e){} document.body.removeChild(ta);
+}
+
 // ---------------- shell ----------------
 function setNav(which){
   document.getElementById('nav-fleet').classList.toggle('on', which==='fleet');
   document.getElementById('nav-new').classList.toggle('on', which==='new');
+  document.getElementById('nav-add').classList.toggle('on', which==='add');
 }
 async function refresh(opts){
   opts = opts || {};
@@ -366,6 +506,8 @@ async function refresh(opts){
 }
 function route(){
   const h = location.hash || '#/';
+  if (h === '#/add'){ setNav('add'); if(!addActive){ addActive=true; viewAdd(); } return; }
+  addActive = false; stopAddPoll();
   const m = h.match(/^#\/host\/(.+)$/);
   if (h === '#/new') viewNew();
   else if (m) viewHost(decodeURIComponent(m[1]));

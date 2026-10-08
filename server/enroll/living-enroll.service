@@ -1,0 +1,13 @@
+[Unit]
+Description=Living Dashboard enrollment service (Add-host SSH push backend)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/brrew/srv/living/enroll-svc.py
+Environment=LIVING_ENROLL_SOCK=/home/brrew/srv/living/sock/enroll.sock
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
