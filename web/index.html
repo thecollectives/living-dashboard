@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Living — Fleet Monitor</title>
 <style>
@@ -10,6 +10,15 @@
   --bg:#0a0e14; --panel:#11161d; --panel2:#0d1219; --border:#21262d;
   --text:#e6edf3; --dim:#8b949e; --green:#3fb950; --gold:#f0b429;
   --red:#f85149; --blue:#58a6ff; --purple:#bc8cff;
+  --code:#0d1117; --hover:rgba(255,255,255,.05); --hover2:rgba(255,255,255,.015);
+  --headbg:rgba(10,14,20,.96);
+}
+html[data-theme="light"]{
+  --bg:#f6f8fa; --panel:#ffffff; --panel2:#eef1f4; --border:#d0d7de;
+  --text:#1f2328; --dim:#57606a; --green:#1a7f37; --gold:#9a6700;
+  --red:#d1242c; --blue:#0969da; --purple:#8250df;
+  --code:#eef1f4; --hover:rgba(0,0,0,.05); --hover2:rgba(0,0,0,.03);
+  --headbg:rgba(246,248,250,.96);
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);
@@ -19,12 +28,12 @@ a{color:var(--blue);text-decoration:none}
 a:hover{text-decoration:underline}
 header{display:flex;align-items:center;gap:14px;padding:14px 20px;
   border-bottom:1px solid var(--border);position:sticky;top:0;
-  background:rgba(10,14,20,.96);z-index:10}
+  background:var(--headbg);z-index:10}
 header h1{margin:0;font-size:20px;letter-spacing:.5px}
 header h1 .accent{color:var(--green)}
 nav{display:flex;gap:4px;margin-left:12px}
 nav a{color:var(--dim);padding:6px 12px;border-radius:8px;font-size:13px}
-nav a:hover{background:rgba(255,255,255,.05);text-decoration:none;color:var(--text)}
+nav a:hover{background:var(--hover);text-decoration:none;color:var(--text)}
 nav a.on{background:rgba(63,185,80,.14);color:var(--green);font-weight:600}
 .meta{color:var(--dim);font-size:12px;margin-left:auto}
 .livedot{width:9px;height:9px;border-radius:50%;background:var(--green);
@@ -59,7 +68,7 @@ table.sheet th{text-align:left;color:var(--dim);font-weight:600;font-size:11px;
   border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel)}
 table.sheet td{padding:7px 10px;border-bottom:1px solid rgba(33,38,45,.6);
   vertical-align:top;word-break:break-word}
-table.sheet tr:hover td{background:rgba(255,255,255,.015)}
+table.sheet tr:hover td{background:var(--hover2)}
 .pills{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 .pill{border:1px solid var(--border);background:var(--panel2);color:var(--dim);
   border-radius:999px;padding:5px 14px;font-size:12px;cursor:pointer}
@@ -81,8 +90,8 @@ table.sheet tr:hover td{background:rgba(255,255,255,.015)}
 .abtn{background:none;border:1px solid var(--border);color:var(--dim);
   border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;white-space:nowrap}
 .abtn:hover{color:var(--text);border-color:var(--dim)}
-.abtn.danger{color:#f85149;border-color:rgba(248,81,73,.4)}
-.abtn.danger:hover{color:#ff7b72;border-color:#f85149;background:rgba(248,81,73,.08)}
+.abtn.danger{color:var(--red);border-color:var(--border)}
+.abtn.danger:hover{color:var(--red);border-color:var(--red);background:var(--hover)}
 .bmgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
 .bm{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px}
 .bm .t{font-weight:600;font-size:14px;margin-bottom:4px}
@@ -113,20 +122,26 @@ canvas.spark{width:100%;height:64px;display:block}
 .btn:disabled{opacity:.5;cursor:default}
 .radio-row{display:flex;gap:18px;margin:2px 0 12px;font-size:13px}
 .radio-row label{cursor:pointer;display:flex;align-items:center;gap:6px}
-.codeblock{position:relative;background:#0d1117;border:1px solid var(--border);
+.codeblock{position:relative;background:var(--code);border:1px solid var(--border);
   border-radius:8px;padding:12px 70px 12px 14px;font-family:ui-monospace,Menlo,Consolas,monospace;
-  font-size:12.5px;word-break:break-all;margin:8px 0;color:#c9d4dc}
+  font-size:12.5px;word-break:break-all;margin:8px 0;color:var(--text)}
 .codeblock .abtn{position:absolute;top:8px;right:8px}
-.joblog{background:#0d1117;border:1px solid var(--border);border-radius:8px;
+.joblog{background:var(--code);border:1px solid var(--border);border-radius:8px;
   padding:12px 14px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;
   white-space:pre-wrap;word-break:break-word;max-height:320px;overflow-y:auto;
-  margin-top:12px;color:#c9d4dc}
+  margin-top:12px;color:var(--text)}
 .statusbar{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:13px}
 .st-ok{color:var(--green)} .st-err{color:var(--red)} .st-run{color:var(--blue)}
 .method{border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .method + .method{margin-top:14px}
 footer{color:var(--dim);font-size:11px;text-align:center;padding:20px}
 </style>
+<script>
+/* theme before first paint: saved choice, else OS preference, else dark */
+(function(){try{var t=localStorage.getItem('living-theme');
+if(t!=='light'&&t!=='dark'){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';}
+document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='dark';}})();
+</script>
 </head>
 <body>
 <header>
@@ -136,6 +151,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;padding:20px}
     <a href="#/new" id="nav-new">What's New <span id="nav-new-count"></span></a>
     <a href="#/add" id="nav-add">Add host</a>
   </nav>
+  <button class="abtn" id="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light theme">🌙</button>
   <div class="meta"><span class="livedot"></span><span id="updated">connecting…</span></div>
 </header>
 <div class="wrap" id="app"></div>
@@ -144,6 +160,20 @@ footer{color:var(--dim);font-size:11px;text-align:center;padding:20px}
 const API = '/living/api';
 const app = document.getElementById('app');
 let STATE = {hosts:[], events:[], metrics:{}};
+
+// theme: dark/light toggle; default follows OS preference (set pre-paint
+// in <head>), choice persisted in localStorage.
+function syncThemeIcon(){
+  const b = document.getElementById('theme-toggle');
+  if(b) b.textContent = document.documentElement.dataset.theme === 'light' ? '☀️' : '🌙';
+}
+function toggleTheme(){
+  const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = t;
+  try{ localStorage.setItem('living-theme', t); }catch(e){}
+  syncThemeIcon();
+}
+syncThemeIcon();
 
 async function jget(path) {
   const r = await fetch(API + path);
@@ -369,7 +399,7 @@ async function drawSpark(id, host_id){
     const c = cv.getContext('2d'); c.scale(dpr,dpr);
     const vals = rows.map(r=>r.cpu_pct||0).reverse();
     if(!vals.length) return;
-    c.strokeStyle = '#3fb950'; c.lineWidth = 1.5; c.beginPath();
+    c.strokeStyle = (getComputedStyle(document.documentElement).getPropertyValue('--green')||'#3fb950').trim(); c.lineWidth = 1.5; c.beginPath();
     vals.forEach((v,i)=>{ const x=i/(vals.length-1||1)*W, y=H-(v/100)*H;
       i?c.lineTo(x,y):c.moveTo(x,y); });
     c.stroke();
