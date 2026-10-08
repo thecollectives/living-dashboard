@@ -18,6 +18,8 @@ Endpoints:
   GET  /jobs/<id>     {job_id, status, stage, log[], ...}
   POST /tokens        {label?} -> {token, label, expires_at, one_liners}
                       mints a single-use token for the copy-paste flow.
+  DELETE /hosts/<id>  remove a host and all its inventory, events,
+                      bookmarks, scans and history (one transaction).
   GET  /health        {ok:true}
 
 Credential handling (strict):
@@ -72,9 +74,88 @@ IPV6_RE = re.compile(r"^\[([0-9a-fA-F:]+)\]$")
 USER_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 LABEL_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 TOKEN_RE = re.compile(r"TOKEN=([0-9a-f]{32})")
+HOST_ID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+# Single-transaction host removal. Children before parents to satisfy
+# the FKs (bookmarks->events, events->scans, everything->hosts).
+# : 'hid' is psql's safely-quoted variable interpolation; the UUID
+# regex above makes injection impossible regardless.
+DELETE_HOST_SQL = """\
+BEGIN;
+DELETE FROM inventory_current WHERE host_id = :'hid';
+DELETE FROM inventory_history WHERE host_id = :'hid';
+DELETE FROM metrics_ts WHERE host_id = :'hid';
+DELETE FROM metrics_5m WHERE host_id = :'hid';
+DELETE FROM metrics_1h WHERE host_id = :'hid';
+DELETE FROM log_sources WHERE host_id = :'hid';
+DELETE FROM bookmarks WHERE host_id = :'hid';
+DELETE FROM events WHERE host_id = :'hid';
+DELETE FROM scan_staging WHERE host_id = :'hid';
+DELETE FROM scans WHERE host_id = :'hid';
+DELETE FROM enrollment_tokens WHERE used_by_host_id = :'hid';
+DELETE FROM hosts WHERE host_id = :'hid';
+COMMIT;
+"""
 
 jobs = {}
 jobs_lock = threading.Lock()
+
+
+def db_password():
+    """Read POSTGRES_PASSWORD from the living .env (600, brrew-owned)."""
+    try:
+        with open(os.path.join(LIVING_DIR, ".env")) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("POSTGRES_PASSWORD="):
+                    return line.split("=", 1)[1].strip().strip("'\"")
+    except OSError:
+        pass
+    return None
+
+
+def psql_run(extra_args, sql_input=None, timeout=60):
+    """Run psql inside the living-postgres container (same path as
+    mint-token.sh: docker exec, PGPASSWORD from .env). Returns
+    (stdout, None) or (None, error_string) — never leaks the secret."""
+    pw = db_password()
+    if not pw:
+        return None, "db credentials unavailable"
+    env = dict(os.environ)
+    env["PGPASSWORD"] = pw
+    try:
+        p = subprocess.run(
+            ["docker", "exec", "-i", "living-postgres", "psql",
+             "-h", "127.0.0.1", "-U", "living_admin", "-d", "livingdb",
+             "-v", "ON_ERROR_STOP=1", "-X", "-q", "-t", "-A"] + extra_args,
+            input=sql_input, capture_output=True, text=True,
+            timeout=timeout, env=env)
+    except (OSError, subprocess.TimeoutExpired):
+        return None, "db call failed"
+    if p.returncode != 0:
+        return None, "db error"
+    return (p.stdout or "").strip(), None
+
+
+def delete_host(host_id):
+    """Delete a host and every row that references it, in one
+    transaction. Returns (True, None) or (False, error_string)."""
+    # NB: psql does not expand :'var' in -c strings on this build;
+    # pass everything via stdin where substitution works.
+    out, err = psql_run(["-v", "hid=" + host_id],
+                        sql_input="SELECT 1 FROM hosts"
+                                  " WHERE host_id = :'hid';")
+    if err:
+        return False, err
+    if out != "1":
+        return False, "unknown host"
+    _, err = psql_run(["-v", "hid=" + host_id], sql_input=DELETE_HOST_SQL,
+                      timeout=120)
+    if err:
+        return False, err
+    return True, None
 
 
 def valid_host(h):
@@ -358,6 +439,20 @@ class Handler(BaseHTTPRequestHandler):
                                     "expires_at": expires,
                                     "one_liners": one_liners})
         return self._send(404, {"error": "not found"})
+
+    def do_DELETE(self):
+        m = re.fullmatch(
+            r"/hosts/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+            r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12})", self.path)
+        if not m:
+            return self._send(404, {"error": "not found"})
+        host_id = m.group(1)
+        ok, err = delete_host(host_id)
+        if not ok:
+            if err == "unknown host":
+                return self._send(404, {"error": "unknown host"})
+            return self._send(500, {"error": err})
+        return self._send(200, {"ok": True, "deleted": host_id})
 
 
 class UnixHTTPServer(ThreadingHTTPServer):

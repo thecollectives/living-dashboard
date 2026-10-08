@@ -367,6 +367,7 @@ def deep_scan():
 
     # ---- listening ports + docker ----
     docker_ports = set()
+    docker_port_names = {}  # published host port -> container name
     for line in sh(["docker", "ps", "--format", "{{json .}}"],
                    timeout=10).splitlines():
         try:
@@ -378,10 +379,12 @@ def deep_scan():
             pm = re.match(r"(?:\d+\.\d+\.\d+\.\d+|\[::\]):(\d+)->(\d+)/(\w+)",
                           tok.strip())
             if pm:
-                ports.append({"host": int(pm.group(1)),
+                hp = int(pm.group(1))
+                ports.append({"host": hp,
                               "container": int(pm.group(2)),
                               "proto": pm.group(3)})
-                docker_ports.add(int(pm.group(1)))
+                docker_ports.add(hp)
+                docker_port_names[hp] = c.get("Names", "")
         add(("docker_app", stable_key("docker", c.get("Names", "")),
                     {"name": c.get("Names", ""),
                      "image": (c.get("Image", "") or "").split("@")[0],
@@ -422,14 +425,16 @@ def deep_scan():
                     pass
 
     # ---- web-service classification: HTTP probe each listener ----
+    # (docker-published ports included: probing 127.0.0.1:<published>
+    # works, and the container name is attached when known)
     for port, proc in sorted(set(listeners)):
-        if port in docker_ports:
-            continue
         title, status, server = probe_http(port)
         if status:
-            add(("web_service", stable_key("web", port),
-                        {"port": port, "process": proc, "title": title,
-                         "status": status, "server": server, "path": "/"}))
+            ws = {"port": port, "process": proc, "title": title,
+                  "status": status, "server": server, "path": "/"}
+            if port in docker_port_names:
+                ws["container"] = docker_port_names[port]
+            add(("web_service", stable_key("web", port), ws))
 
     # ---- log sources ----
     if PLATFORM == "linux":

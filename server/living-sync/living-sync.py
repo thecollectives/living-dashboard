@@ -178,7 +178,7 @@ def process_deep(cur, host_id, payload, staging_ts):
                     " summary, scan_id) VALUES (%s,'new',%s,%s,%s,%s)"
                     " RETURNING event_id",
                     (host_id, category, key, summary, scan_id))
-                new_events.append((cur.fetchone()[0], category, item))
+                new_events.append((cur.fetchone()[0], category, key, item))
         else:
             old_item, _miss = old
             if stable_part(category, old_item) != stable_part(category, item):
@@ -219,10 +219,17 @@ def process_deep(cur, host_id, payload, staging_ts):
                         " WHERE host_id=%s AND category=%s AND item_key=%s",
                         (miss, host_id, category, key))
 
-    # auto-bookmark new web services (the user's example)
-    for event_id, category, item in new_events:
-        if category != "web_service":
-            continue
+    # auto-bookmark web services (the user's example): iterate over ALL
+    # current web_service items in inventory_current — not just this scan's
+    # new events — so the silent baseline scan and hosts enrolled before
+    # this fix get bookmarked too. Idempotent via
+    # ON CONFLICT (host_id, url) DO NOTHING; detected_from_event carries
+    # the event id for genuinely new services, NULL for backfilled ones.
+    new_ws_events = {key: eid for eid, cat, key, _it in new_events
+                     if cat == "web_service"}
+    cur.execute("SELECT item_key, item FROM inventory_current"
+                " WHERE host_id=%s AND category='web_service'", (host_id,))
+    for key, item in cur.fetchall():
         if item.get("status") not in (200, 301, 302, 401, 403):
             continue
         if tip is None:
@@ -230,12 +237,14 @@ def process_deep(cur, host_id, payload, staging_ts):
         if not tip:
             continue
         url = "http://%s:%s%s" % (tip, item["port"], item.get("path") or "/")
-        title = item.get("title") or "%s:%s" % (tip, item["port"])
+        title = (item.get("container")
+                 or item.get("title")
+                 or "%s:%s" % (tip, item["port"]))
         cur.execute(
             "INSERT INTO bookmarks (host_id, title, url,"
             " detected_from_event, auto) VALUES (%s,%s,%s,%s,TRUE)"
             " ON CONFLICT (host_id, url) DO NOTHING",
-            (host_id, title, url, event_id))
+            (host_id, title, url, new_ws_events.get(key)))
 
     if is_baseline:
         cur.execute("UPDATE hosts SET baseline_scan_id=%s WHERE host_id=%s",

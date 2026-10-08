@@ -81,6 +81,8 @@ table.sheet tr:hover td{background:rgba(255,255,255,.015)}
 .abtn{background:none;border:1px solid var(--border);color:var(--dim);
   border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;white-space:nowrap}
 .abtn:hover{color:var(--text);border-color:var(--dim)}
+.abtn.danger{color:#f85149;border-color:rgba(248,81,73,.4)}
+.abtn.danger:hover{color:#ff7b72;border-color:#f85149;background:rgba(248,81,73,.08)}
 .bmgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
 .bm{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px}
 .bm .t{font-weight:600;font-size:14px;margin-bottom:4px}
@@ -215,6 +217,19 @@ async function ackEvent(id, ack){
   refresh({keep:true});
 }
 
+async function removeHost(){
+  const id = hostCache.id, label = (hostCache.h&&hostCache.h.label)||id;
+  if(!id) return;
+  if(!confirm('Remove host "'+label+'"?\n\nThis permanently deletes its inventory, events, bookmarks, scans and history. This cannot be undone.')) return;
+  let d = {};
+  try{
+    const r = await fetch('/living/enroll/hosts/'+encodeURIComponent(id), {method:'DELETE'});
+    d = await r.json().catch(()=>({}));
+    if(r.ok && d.ok){ location.hash = '#/'; return; }
+    alert('Remove failed: '+(d.error||('HTTP '+r.status)));
+  }catch(e){ alert('Remove failed: network error'); }
+}
+
 // ---------------- host page ----------------
 let hostTab = 'overview', hostCat = '', hostQ = '';
 let hostCache = {id:null, h:null, m:null, inv:[], bms:[], evs:[], logs:[]};
@@ -242,7 +257,8 @@ function renderHost(){
 
   let html = `<div class="sect"><div class="secthead">
     <h2><span class="hdot ${health(h.last_seen)}"></span>${esc(h.label)} ${platIcon(h.platform)}
-    <span style="color:var(--dim);font-weight:400">· ${esc(h.os||'')}</span></h2></div>
+    <span style="color:var(--dim);font-weight:400">· ${esc(h.os||'')}</span></h2>
+    <button class="abtn danger" onclick="removeHost()" title="Delete this host and all its inventory, events, bookmarks and history">remove host</button></div>
     <div class="tabs">
       ${['overview','inventory','bookmarks','scheduled','logs','new'].map(t=>
         `<div class="tab ${hostTab===t?'on':''}" onclick="hostTab='${t}';renderHost()">${t[0].toUpperCase()+t.slice(1)}</div>`).join('')}
