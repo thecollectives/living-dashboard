@@ -89,9 +89,13 @@ remote_install_linux() {
     return 1
   fi
   echo "enroll: feeding provided password to sudo"
-  pwf="$(ssh "${SSH_ARGS[@]}" "$TARGET" "mktemp /tmp/.living-pw.XXXXXX" 2>/dev/null)" || return 1
-  scriptf="$(ssh "${SSH_ARGS[@]}" "$TARGET" "mktemp /tmp/.living-install.XXXXXX.sh" 2>/dev/null)" || return 1
-  "$LIVING_SSH_ASKPASS" 2>/dev/null | ssh "${SSH_ARGS[@]}" "$TARGET" "cat > '$pwf' && chmod 600 '$pwf'" || return 1
+  pwf="$(ssh "${SSH_ARGS[@]}" "$TARGET" "mktemp /tmp/.living-pw.XXXXXX" 2>/dev/null)" \
+    || { echo "enroll: cannot create temp file on target" >&2; return 1; }
+  scriptf="$(ssh "${SSH_ARGS[@]}" "$TARGET" "mktemp /tmp/.living-install.XXXXXX.sh" 2>/dev/null)" \
+    || { echo "enroll: cannot create temp file on target" >&2; return 1; }
+  # run the helper via sh explicitly: it may lack the exec bit in some setups
+  sh "$LIVING_SSH_ASKPASS" 2>/dev/null | ssh "${SSH_ARGS[@]}" "$TARGET" "cat > '$pwf' && chmod 600 '$pwf'" \
+    || { echo "enroll: cannot stage sudo password on target" >&2; return 1; }
   curl -fsSL "$INSTALL_BASE/install.sh" | ssh "${SSH_ARGS[@]}" "$TARGET" "cat > '$scriptf'" \
     || { echo "enroll: installer download failed" >&2; return 1; }
   # sudo -S reads the password from stdin; bash runs the staged script file.

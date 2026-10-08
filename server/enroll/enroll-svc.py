@@ -254,7 +254,7 @@ def run_job(job, req):
             pw = req["secret"].replace("'", "'\\''")
             with open(askf, "w") as f:
                 f.write("#!/bin/sh\nprintf '%%s' '%s'\n" % pw)
-            os.chmod(askf, 0o600)
+            os.chmod(askf, 0o700)  # must be executable: enroll_ssh.sh runs it directly for sudo -S
             env["LIVING_SSH_ASKPASS"] = askf
 
         target = "%s@%s" % (req["username"], req["host"])
