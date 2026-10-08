@@ -71,9 +71,39 @@ fi
 echo "enroll: remote OS detected: $OS"
 
 # 3. run installer
-if [ "$OS" = "Linux" ] || [ "$OS" = "Darwin" ]; then
+remote_install_linux() {
+  # Installs the watcher through a root shell on the target.
+  # Prefers passwordless sudo; otherwise feeds the SSH password (from the
+  # ASKPASS helper, when password auth was used) to `sudo -S`.
+  # The password travels via stdin into a 600 temp file on the target —
+  # never on a command line, never in our logs — and is deleted right after.
+  local pwf scriptf rc
+  if ssh "${SSH_ARGS[@]}" "$TARGET" "sudo -n true" 2>/dev/null; then
+    echo "enroll: passwordless sudo on target"
+    ssh "${SSH_ARGS[@]}" "$TARGET" \
+      "curl -fsSL $INSTALL_BASE/install.sh | sudo bash -s -- --token '$TOKEN' --label '$LABEL'"
+    return $?
+  fi
+  if [ -z "$LIVING_SSH_ASKPASS" ]; then
+    echo "enroll: target needs a sudo password (no passwordless sudo, no password provided)" >&2
+    return 1
+  fi
+  echo "enroll: feeding provided password to sudo"
+  pwf="$(ssh "${SSH_ARGS[@]}" "$TARGET" "mktemp /tmp/.living-pw.XXXXXX" 2>/dev/null)" || return 1
+  scriptf="$(ssh "${SSH_ARGS[@]}" "$TARGET" "mktemp /tmp/.living-install.XXXXXX.sh" 2>/dev/null)" || return 1
+  "$LIVING_SSH_ASKPASS" 2>/dev/null | ssh "${SSH_ARGS[@]}" "$TARGET" "cat > '$pwf' && chmod 600 '$pwf'" || return 1
+  curl -fsSL "$INSTALL_BASE/install.sh" | ssh "${SSH_ARGS[@]}" "$TARGET" "cat > '$scriptf'" \
+    || { echo "enroll: installer download failed" >&2; return 1; }
+  # sudo -S reads the password from stdin; bash runs the staged script file.
   ssh "${SSH_ARGS[@]}" "$TARGET" \
-    "curl -fsSL $INSTALL_BASE/install.sh | sudo bash -s -- --token '$TOKEN' --label '$LABEL'"
+    "cat '$pwf' | sudo -S bash '$scriptf' --token '$TOKEN' --label '$LABEL'; rc=\$?; rm -f '$pwf' '$scriptf'; exit \$rc"
+  rc=$?
+  ssh "${SSH_ARGS[@]}" "$TARGET" "rm -f '$pwf' '$scriptf'" 2>/dev/null || true
+  return $rc
+}
+
+if [ "$OS" = "Linux" ] || [ "$OS" = "Darwin" ]; then
+  remote_install_linux
 else
   # Windows: download + run elevated. Assumes the SSH user can elevate
   # (UAC prompt may appear on the console for non-elevated sessions).
