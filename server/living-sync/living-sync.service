@@ -1,0 +1,6 @@
+[Unit]
+Description=Living Dashboard differ engine (inventory diff, events, auto-bookmarks)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/brrew/srv/living/living-sync.py

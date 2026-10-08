@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living — Fleet Monitor</title>
+<style>
+:root{
+  --bg:#0a0e14; --panel:#11161d; --panel2:#0d1219; --border:#21262d;
+  --text:#e6edf3; --dim:#8b949e; --green:#3fb950; --gold:#f0b429;
+  --red:#f85149; --blue:#58a6ff; --purple:#bc8cff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:14px;line-height:1.45}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+header{display:flex;align-items:center;gap:14px;padding:14px 20px;
+  border-bottom:1px solid var(--border);position:sticky;top:0;
+  background:rgba(10,14,20,.96);z-index:10}
+header h1{margin:0;font-size:20px;letter-spacing:.5px}
+header h1 .accent{color:var(--green)}
+nav{display:flex;gap:4px;margin-left:12px}
+nav a{color:var(--dim);padding:6px 12px;border-radius:8px;font-size:13px}
+nav a:hover{background:rgba(255,255,255,.05);text-decoration:none;color:var(--text)}
+nav a.on{background:rgba(63,185,80,.14);color:var(--green);font-weight:600}
+.meta{color:var(--dim);font-size:12px;margin-left:auto}
+.livedot{width:9px;height:9px;border-radius:50%;background:var(--green);
+  display:inline-block;animation:pulse 1.6s infinite;margin-right:6px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.wrap{max-width:1180px;margin:0 auto;padding:18px 20px 60px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:16px;cursor:pointer;transition:border-color .2s}
+.card:hover{border-color:var(--green)}
+.card h3{margin:0 0 4px;font-size:16px}
+.card .sub{color:var(--dim);font-size:12px;margin-bottom:10px}
+.hdot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:8px}
+.hdot.ok{background:var(--green)} .hdot.warn{background:var(--gold)} .hdot.dead{background:var(--red)}
+.statrow{display:flex;gap:14px;margin-top:8px;font-size:12px;color:var(--dim)}
+.statrow b{color:var(--text);font-size:14px}
+.newbadge{background:rgba(240,180,41,.15);color:var(--gold);border:1px solid var(--gold);
+  border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600;margin-left:8px}
+.sect{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  margin-bottom:14px;overflow:hidden}
+.secthead{padding:13px 18px;border-bottom:1px solid var(--border)}
+.secthead h2{margin:0;font-size:14px;font-weight:600;letter-spacing:.04em}
+.sectbody{padding:16px 18px}
+.tabs{display:flex;gap:4px;padding:10px 18px 0;border-bottom:1px solid var(--border)}
+.tab{padding:8px 14px;font-size:13px;color:var(--dim);cursor:pointer;
+  border-bottom:2px solid transparent}
+.tab:hover{color:var(--text)}
+.tab.on{color:var(--green);border-bottom-color:var(--green);font-weight:600}
+table.sheet{width:100%;border-collapse:collapse;font-size:13px}
+table.sheet th{text-align:left;color:var(--dim);font-weight:600;font-size:11px;
+  text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;
+  border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel)}
+table.sheet td{padding:7px 10px;border-bottom:1px solid rgba(33,38,45,.6);
+  vertical-align:top;word-break:break-word}
+table.sheet tr:hover td{background:rgba(255,255,255,.015)}
+.pills{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.pill{border:1px solid var(--border);background:var(--panel2);color:var(--dim);
+  border-radius:999px;padding:5px 14px;font-size:12px;cursor:pointer}
+.pill.on{background:rgba(63,185,80,.14);border-color:var(--green);color:var(--green);font-weight:600}
+.search{background:var(--panel2);border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:8px 12px;font-size:13px;width:280px;margin-bottom:12px}
+.search:focus{outline:none;border-color:var(--green)}
+.event{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid rgba(33,38,45,.6);
+  align-items:flex-start}
+.event:last-child{border-bottom:none}
+.ekind{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  border-radius:6px;padding:3px 9px;white-space:nowrap;margin-top:2px}
+.ekind.new{background:rgba(63,185,80,.15);color:var(--green)}
+.ekind.gone{background:rgba(248,81,73,.15);color:var(--red)}
+.ekind.changed{background:rgba(240,180,41,.15);color:var(--gold)}
+.event .body{flex:1}
+.event .sum{font-size:13px}
+.event .when{color:var(--dim);font-size:11px;margin-top:2px}
+.abtn{background:none;border:1px solid var(--border);color:var(--dim);
+  border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;white-space:nowrap}
+.abtn:hover{color:var(--text);border-color:var(--dim)}
+.bmgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.bm{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px}
+.bm .t{font-weight:600;font-size:14px;margin-bottom:4px}
+.bm .u{font-size:12px;color:var(--dim);word-break:break-all}
+.autobadge{font-size:10px;background:rgba(88,166,255,.15);color:var(--blue);
+  border-radius:4px;padding:2px 7px;margin-left:8px;text-transform:uppercase;
+  letter-spacing:.05em}
+.gauges{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.gauge{background:var(--panel2);border:1px solid var(--border);border-radius:10px;
+  padding:14px;text-align:center}
+.gauge .v{font-size:24px;font-weight:700}
+.gauge .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
+.infogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 20px;font-size:13px}
+.infogrid .k{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.empty{color:var(--dim);text-align:center;padding:30px;font-size:13px}
+canvas.spark{width:100%;height:64px;display:block}
+footer{color:var(--dim);font-size:11px;text-align:center;padding:20px}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="accent">Living</span> · Fleet Monitor</h1>
+  <nav>
+    <a href="#/" id="nav-fleet">Fleet</a>
+    <a href="#/new" id="nav-new">What's New <span id="nav-new-count"></span></a>
+  </nav>
+  <div class="meta"><span class="livedot"></span><span id="updated">connecting…</span></div>
+</header>
+<div class="wrap" id="app"></div>
+<footer>livingdb · tailnet-only · <span id="host-count"></span></footer>
+<script>
+const API = '/living/api';
+const app = document.getElementById('app');
+let STATE = {hosts:[], events:[], metrics:{}};
+
+async function jget(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error('api ' + r.status + ' ' + path);
+  return r.json();
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function ago(ts){
+  if(!ts) return 'never';
+  const s = Math.floor((Date.now() - new Date(ts).getTime())/1000);
+  if (s < 60) return s+'s ago';
+  if (s < 3600) return Math.floor(s/60)+'m ago';
+  if (s < 86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+function health(last_seen){
+  if(!last_seen) return 'dead';
+  const s = (Date.now() - new Date(last_seen).getTime())/1000;
+  return s < 600 ? 'ok' : (s < 3600 ? 'warn' : 'dead');
+}
+function platIcon(p){
+  return p==='windows' ? '▦' : (p==='darwin' ? '' : '🐧');
+}
+
+// ---------------- fleet overview ----------------
+async function viewFleet(){
+  setNav('fleet');
+  let html = '<div class="cards">';
+  for (const h of STATE.hosts){
+    const m = STATE.metrics[h.host_id];
+    const unacked = STATE.events.filter(e=>e.host_id===h.host_id).length;
+    html += `<div class="card" onclick="location.hash='#/host/${esc(h.host_id)}'">
+      <h3><span class="hdot ${health(h.last_seen)}"></span>${esc(h.label)} ${platIcon(h.platform)}
+        ${unacked?`<span class="newbadge">${unacked} new</span>`:''}</h3>
+      <div class="sub">${esc(h.os||h.platform||'')} · seen ${ago(h.last_seen)}</div>
+      <div class="statrow">
+        <span>CPU <b>${m&&m.cpu_pct!=null?m.cpu_pct+'%':'–'}</b></span>
+        <span>MEM <b>${m&&m.mem_pct!=null?m.mem_pct+'%':'–'}</b></span>
+        <span>LOAD <b>${m&&m.load1!=null?m.load1:'–'}</b></span>
+        ${m&&m.gpu_util!=null?`<span>GPU <b>${m.gpu_util}%</b></span>`:''}
+      </div></div>`;
+  }
+  html += '</div>';
+  if (!STATE.hosts.length) html = '<div class="empty">No hosts enrolled yet.<br>Run the installer on a host to begin.</div>';
+  app.innerHTML = html;
+  document.getElementById('host-count').textContent =
+    STATE.hosts.length + ' host' + (STATE.hosts.length===1?'':'s');
+}
+
+// ---------------- what's new (fleet) ----------------
+async function viewNew(){
+  setNav('new');
+  const evs = await jget('/events?select=event_id,host_id,ts,kind,category,summary,acked&dismissed=eq.false&order=ts.desc&limit=150');
+  const hmap = Object.fromEntries(STATE.hosts.map(h=>[h.host_id,h.label]));
+  let html = '<div class="sect"><div class="secthead"><h2>What\'s New — fleet feed</h2></div><div class="sectbody">';
+  if (!evs.length) html += '<div class="empty">Nothing new. The watcher is quiet.</div>';
+  for (const e of evs){
+    html += `<div class="event"><span class="ekind ${e.kind}">${e.kind}</span>
+      <div class="body"><div class="sum">${esc(e.summary)}</div>
+      <div class="when">${esc(hmap[e.host_id]||e.host_id)} · ${esc(e.category)} · ${ago(e.ts)}</div></div>
+      ${e.acked?'':'<button class="abtn" onclick="ackEvent('+e.event_id+',true)">ack</button>'}
+      <button class="abtn" onclick="ackEvent('+e.event_id+',false)">dismiss</button></div>`;
+  }
+  app.innerHTML = html + '</div></div>';
+}
+async function ackEvent(id, ack){
+  await fetch(API + '/events?event_id=eq.'+id, {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(ack?{acked:true}:{dismissed:true})});
+  refresh({keep:true});
+}
+
+// ---------------- host page ----------------
+let hostTab = 'overview', hostCat = '', hostQ = '';
+let hostCache = {id:null, h:null, m:null, inv:[], bms:[], evs:[], logs:[]};
+async function viewHost(id){
+  setNav('');
+  if (hostCache.id !== id){
+    const h = STATE.hosts.find(x=>x.host_id===id);
+    if (!h){ app.innerHTML = '<div class="empty">Unknown host.</div>'; return; }
+    const [inv, bms, evs, logs] = await Promise.all([
+      jget('/inventory_current?host_id=eq.'+encodeURIComponent(id)+
+        '&select=category,item_key,item,first_seen&order=category,item_key&limit=5000'),
+      jget('/bookmarks?host_id=eq.'+encodeURIComponent(id)+
+        '&dismissed=eq.false&order=created_at.desc'),
+      jget('/events?host_id=eq.'+encodeURIComponent(id)+
+        '&dismissed=eq.false&order=ts.desc&limit=100'),
+      jget('/log_sources?host_id=eq.'+encodeURIComponent(id)+'&order=name&limit=200'),
+    ]);
+    hostCache = {id, h, m:STATE.metrics[id]||{}, inv, bms, evs, logs};
+  }
+  renderHost();
+}
+function renderHost(){
+  const {id, h, m, inv, bms, evs, logs} = hostCache;
+  const cats = [...new Set(inv.map(r=>r.category))].sort();
+
+  let html = `<div class="sect"><div class="secthead">
+    <h2><span class="hdot ${health(h.last_seen)}"></span>${esc(h.label)} ${platIcon(h.platform)}
+    <span style="color:var(--dim);font-weight:400">· ${esc(h.os||'')}</span></h2></div>
+    <div class="tabs">
+      ${['overview','inventory','bookmarks','scheduled','logs','new'].map(t=>
+        `<div class="tab ${hostTab===t?'on':''}" onclick="hostTab='${t}';renderHost()">${t[0].toUpperCase()+t.slice(1)}</div>`).join('')}
+    </div><div class="sectbody" id="hostbody"></div></div>`;
+  app.innerHTML = html;
+  const b = document.getElementById('hostbody');
+
+  if (hostTab === 'overview'){
+    const ifaces = inv.filter(r=>r.category==='net_iface');
+    const tip = ifaces.flatMap(r=>r.item.addrs||[]).find(a=>a.startsWith('100.')) || '';
+    b.innerHTML = `
+      <div class="gauges">
+        <div class="gauge"><div class="v">${m.cpu_pct!=null?m.cpu_pct+'%':'–'}</div><div class="l">CPU</div></div>
+        <div class="gauge"><div class="v">${m.mem_pct!=null?m.mem_pct+'%':'–'}</div><div class="l">Memory</div></div>
+        <div class="gauge"><div class="v">${m.load1!=null?m.load1:'–'}</div><div class="l">Load 1m</div></div>
+        <div class="gauge"><div class="v">${m.disk_used_pct!=null?m.disk_used_pct+'%':'–'}</div><div class="l">Disk</div></div>
+        ${m.gpu_util!=null?`<div class="gauge"><div class="v">${m.gpu_util}%</div><div class="l">GPU</div></div>`:''}
+      </div>
+      <div class="infogrid">
+        <div><div class="k">Serial</div>${esc(h.serial||'–')}</div>
+        <div><div class="k">Tailnet IP</div>${esc(tip||'–')}</div>
+        <div><div class="k">Last seen</div>${ago(h.last_seen)}</div>
+        <div><div class="k">Enrolled</div>${ago(h.enrolled_at)}</div>
+        <div><div class="k">Inventory items</div>${inv.length}</div>
+        <div><div class="k">Agent</div>${esc(h.agent_version||'–')}</div>
+      </div>
+      <h3 style="margin:18px 0 8px;font-size:13px;color:var(--dim)">CPU — last hour</h3>
+      <canvas class="spark" id="spark1"></canvas>`;
+    drawSpark('spark1', id);
+  }
+  else if (hostTab === 'inventory'){
+    const rows = inv.filter(r=>(!hostCat||r.category===hostCat) &&
+      (!hostQ||JSON.stringify(r.item).toLowerCase().includes(hostQ)));
+    b.innerHTML = `
+      <div class="pills">${[''].concat(cats).map(c=>
+        `<div class="pill ${hostCat===c?'on':''}" onclick="hostCat='${c}';renderHost()">
+          ${c||'all'}${c?' ('+inv.filter(r=>r.category===c).length+')':''}</div>`).join('')}</div>
+      <input class="search" id="hq" placeholder="filter inventory…" value="${esc(hostQ)}"
+        oninput="hostQ=this.value.toLowerCase();renderHost()">
+      <table class="sheet"><thead><tr><th>Category</th><th>Item</th><th>Detail</th><th>First seen</th></tr></thead>
+      <tbody>${rows.slice(0,400).map(r=>`<tr><td style="color:var(--dim)">${esc(r.category)}</td>
+        <td>${esc(shortItem(r))}</td><td>${esc(detailItem(r))}</td>
+        <td style="color:var(--dim);white-space:nowrap">${ago(r.first_seen||'')}</td></tr>`).join('')}
+      </tbody></table>
+      ${rows.length>400?`<div class="empty">showing 400 of ${rows.length} — refine the filter</div>`:''}`;
+    const q = document.getElementById('hq'); q.focus();
+    q.setSelectionRange(q.value.length, q.value.length);
+  }
+  else if (hostTab === 'bookmarks'){
+    b.innerHTML = bms.length ? `<div class="bmgrid">${bms.map(x=>`
+      <div class="bm"><div class="t">${esc(x.title)}${x.auto?'<span class="autobadge">auto</span>':''}</div>
+      <div class="u"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url)}</a></div></div>`).join('')}</div>`
+      : '<div class="empty">No bookmarks yet. New web services on this host will appear here automatically.</div>';
+  }
+  else if (hostTab === 'scheduled'){
+    const rows = inv.filter(r=>['cron','sched_task'].includes(r.category) &&
+      (!hostQ||JSON.stringify(r.item).toLowerCase().includes(hostQ)));
+    b.innerHTML = `<input class="search" id="hq" placeholder="filter…" value="${esc(hostQ)}"
+      oninput="hostQ=this.value.toLowerCase();renderHost()">
+      <table class="sheet"><thead><tr><th>Type</th><th>Schedule / Trigger</th><th>Command</th></tr></thead><tbody>
+      ${rows.map(r=>{const it=r.item;return `<tr><td style="color:var(--dim)">${esc(r.category==='cron'?'cron':'task')}</td>
+        <td>${esc(it.schedule||it.state||'')}</td><td>${esc(it.command||(it.actions||[]).join('; ')||it.name||'')}</td></tr>`;}).join('')}
+      </tbody></table>${rows.length?'':'<div class="empty">none found</div>'}`;
+  }
+  else if (hostTab === 'logs'){
+    b.innerHTML = logs.length ? `<table class="sheet"><thead><tr><th>Name</th><th>Kind</th><th>Size</th>
+      <th>Sensitive</th></tr></thead><tbody>
+      ${logs.map(l=>`<tr><td>${esc(l.name)}</td><td style="color:var(--dim)">${esc(l.kind)}</td>
+        <td>${l.bytes_approx!=null?fmtBytes(l.bytes_approx):'–'}</td>
+        <td>${l.sensitive?'🔒':'–'}</td></tr>`).join('')}</tbody></table>
+      <div class="empty">Log tail viewer lands in v2 — sources are catalogued above.</div>`
+      : '<div class="empty">No log sources catalogued.</div>';
+  }
+  else if (hostTab === 'new'){
+    b.innerHTML = evs.length ? evs.map(e=>`
+      <div class="event"><span class="ekind ${e.kind}">${e.kind}</span>
+      <div class="body"><div class="sum">${esc(e.summary)}</div>
+      <div class="when">${esc(e.category)} · ${ago(e.ts)}</div></div>
+      ${e.acked?'':'<button class="abtn" onclick="ackEvent('+e.event_id+',true)">ack</button>'}
+      <button class="abtn" onclick="ackEvent('+e.event_id+',false)">dismiss</button></div>`).join('')
+      : '<div class="empty">Nothing new on this host.</div>';
+  }
+}
+function shortItem(r){
+  const it = r.item;
+  return it.name || it.title || it.mount || it.iface || it.command ||
+         (it.port?(':'+it.port):'') || r.item_key.split('|').slice(-1)[0];
+}
+function detailItem(r){
+  const it = r.item;
+  const skip = new Set(['name','title']);
+  return Object.entries(it).filter(([k])=>!k.startsWith('_')&&!skip.has(k))
+    .slice(0,4).map(([k,v])=>k+'='+String(v).slice(0,60)).join(' · ');
+}
+function fmtBytes(b){
+  if(b==null) return '–';
+  const u=['B','KB','MB','GB','TB']; let i=0;
+  while(b>=1024&&i<4){b/=1024;i++;}
+  return b.toFixed(1)+' '+u[i];
+}
+async function drawSpark(id, host_id){
+  try{
+    const rows = await jget('/metrics_ts?host_id=eq.'+encodeURIComponent(host_id)+
+      '&select=ts,cpu_pct&order=ts.desc&limit=60');
+    const cv = document.getElementById(id); if(!cv) return;
+    const dpr = window.devicePixelRatio||1, W = cv.clientWidth, H = 64;
+    cv.width = W*dpr; cv.height = H*dpr;
+    const c = cv.getContext('2d'); c.scale(dpr,dpr);
+    const vals = rows.map(r=>r.cpu_pct||0).reverse();
+    if(!vals.length) return;
+    c.strokeStyle = '#3fb950'; c.lineWidth = 1.5; c.beginPath();
+    vals.forEach((v,i)=>{ const x=i/(vals.length-1||1)*W, y=H-(v/100)*H;
+      i?c.lineTo(x,y):c.moveTo(x,y); });
+    c.stroke();
+  }catch(e){}
+}
+
+// ---------------- shell ----------------
+function setNav(which){
+  document.getElementById('nav-fleet').classList.toggle('on', which==='fleet');
+  document.getElementById('nav-new').classList.toggle('on', which==='new');
+}
+async function refresh(opts){
+  opts = opts || {};
+  try{
+    const [hosts, events] = await Promise.all([
+      jget('/hosts?select=host_id,label,platform,os,serial,last_seen,enrolled_at&order=label'),
+      jget('/events?select=host_id&acked=eq.false&dismissed=eq.false&limit=500'),
+    ]);
+    STATE.hosts = hosts; STATE.events = events;
+    const m = {};
+    await Promise.all(hosts.map(async h=>{
+      try{
+        const r = await jget('/metrics_ts?host_id=eq.'+encodeURIComponent(h.host_id)+
+          '&select=cpu_pct,mem_pct,load1,gpu_util,disk_used_pct&order=ts.desc&limit=1');
+        if (r.length) m[h.host_id] = r[0];
+      }catch(e){}
+    }));
+    STATE.metrics = m;
+    const n = events.length;
+    document.getElementById('nav-new-count').textContent = n?`(${n})`:'';
+    document.getElementById('updated').textContent =
+      'updated ' + new Date().toLocaleTimeString();
+  }catch(e){
+    document.getElementById('updated').textContent = 'api error — retrying';
+  }
+  if (!opts.keep) route(); else { const h=location.hash; route(); }
+}
+function route(){
+  const h = location.hash || '#/';
+  const m = h.match(/^#\/host\/(.+)$/);
+  if (h === '#/new') viewNew();
+  else if (m) viewHost(decodeURIComponent(m[1]));
+  else viewFleet();
+}
+window.addEventListener('hashchange', ()=>{ hostTab='overview'; hostCat=''; hostQ=''; route(); });
+refresh();
+setInterval(()=>refresh({keep:true}), 30000);
+</script>
+</body>
+</html>

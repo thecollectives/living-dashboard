@@ -1,0 +1,9 @@
+# Build output — generated on the spark by installer/build-dist.sh, never committed
+installer/dist/
+# Secrets — never commit
+.env
+*.jwt
+*.key
+*.pem
+__pycache__/
+*.pyc
