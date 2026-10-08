@@ -303,8 +303,18 @@ def main():
     cur.execute("SELECT staging_id, host_id, kind, payload FROM scan_staging"
                 " WHERE NOT processed ORDER BY staging_id LIMIT 200")
     rows = cur.fetchall()
-    done = failed = 0
+    # Revoked hosts (dashboard "remove host"): drop their staged scans so the
+    # deletion sticks — never resurrect the host row, never leave them queued.
+    cur.execute("SELECT host_id FROM host_revocations")
+    revoked = {r[0] for r in cur.fetchall()}
+    done = failed = dropped = 0
     for staging_id, host_id, kind, payload in rows:
+        if host_id in revoked:
+            cur.execute("UPDATE scan_staging SET processed=TRUE, error=%s"
+                        " WHERE staging_id=%s",
+                        ("host revoked", staging_id))
+            dropped += 1
+            continue
         try:
             if isinstance(payload, str):
                 payload = json.loads(payload)
@@ -327,7 +337,8 @@ def main():
     except Exception as e:
         sys.stderr.write("living-sync: rollup failed: %s\n" % e)
     conn.commit()
-    print("living-sync: processed=%d failed=%d" % (done, failed))
+    print("living-sync: processed=%d failed=%d revoked_dropped=%d"
+          % (done, failed, dropped))
 
 
 if __name__ == "__main__":

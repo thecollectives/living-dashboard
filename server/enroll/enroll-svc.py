@@ -19,7 +19,9 @@ Endpoints:
   POST /tokens        {label?} -> {token, label, expires_at, one_liners}
                       mints a single-use token for the copy-paste flow.
   DELETE /hosts/<id>  remove a host and all its inventory, events,
-                      bookmarks, scans and history (one transaction).
+                      bookmarks, scans and history (one transaction), and
+                      revoke its host_id so stray agent check-ins and
+                      re-enrollment with the same id are rejected.
   GET  /health        {ok:true}
 
 Credential handling (strict):
@@ -84,6 +86,10 @@ HOST_ID_RE = re.compile(
 # regex above makes injection impossible regardless.
 DELETE_HOST_SQL = """\
 BEGIN;
+INSERT INTO host_revocations (host_id, reason)
+  VALUES (:'hid', 'removed via dashboard')
+  ON CONFLICT (host_id) DO UPDATE
+    SET revoked_at = now(), reason = EXCLUDED.reason;
 DELETE FROM inventory_current WHERE host_id = :'hid';
 DELETE FROM inventory_history WHERE host_id = :'hid';
 DELETE FROM metrics_ts WHERE host_id = :'hid';

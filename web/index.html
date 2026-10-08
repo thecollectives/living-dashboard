@@ -247,10 +247,22 @@ async function ackEvent(id, ack){
   refresh({keep:true});
 }
 
+function uninstallHint(platform){
+  // Manual uninstall one-liners, kept in sync with installer/templates/.
+  if(platform === 'windows')
+    return 'Unregister-ScheduledTask -TaskName "LivingAgent" -Confirm:$false; Remove-Item -Recurse -Force "C:\\ProgramData\\living-agent"';
+  if(platform === 'darwin')
+    return 'sudo launchctl bootout system/us.brrew.living-agent 2>/dev/null; sudo rm -f /Library/LaunchDaemons/us.brrew.living-agent.plist && sudo rm -rf /usr/local/etc/living-agent /usr/local/bin/living-agent.py';
+  return 'sudo systemctl disable --now living-agent.service && sudo rm -f /etc/systemd/system/living-agent.service && sudo systemctl daemon-reload && sudo rm -rf /etc/living-agent /usr/local/bin/living-agent.py';
+}
+
 async function removeHost(){
-  const id = hostCache.id, label = (hostCache.h&&hostCache.h.label)||id;
+  const id = hostCache.id, h = hostCache.h||{}, label = h.label||id;
   if(!id) return;
-  if(!confirm('Remove host "'+label+'"?\n\nThis permanently deletes its inventory, events, bookmarks, scans and history. This cannot be undone.')) return;
+  const plat = (h.platform||'linux').toLowerCase();
+  const shellNote = plat==='windows' ? 'Run this in an elevated PowerShell on the machine:'
+                                      : 'Run this on the machine:';
+  if(!confirm('Remove host "'+label+'"?\n\nThis permanently deletes its inventory, events, bookmarks, scans and history from the dashboard, and blocks this host from re-enrolling. This cannot be undone.\n\nThe agent on the machine keeps running until you uninstall it there. '+shellNote+'\n'+uninstallHint(plat))) return;
   let d = {};
   try{
     const r = await fetch('/living/enroll/hosts/'+encodeURIComponent(id), {method:'DELETE'});

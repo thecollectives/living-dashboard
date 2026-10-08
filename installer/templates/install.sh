@@ -29,9 +29,20 @@ command -v curl >/dev/null || { echo "living-install: curl required" >&2; exit 1
 
 OS="$(uname -s)"
 [ -z "$LABEL" ] && LABEL="$(hostname -s 2>/dev/null || hostname)"
-HOST_ID="$(python3 -c 'import uuid; print(uuid.uuid4())')"
 CONF_DIR="/etc/living-agent"
 [ "$OS" = "Darwin" ] && CONF_DIR="/usr/local/etc/living-agent"
+# Re-enroll reuse: keep the existing host_id so the dashboard sees the same
+# host instead of a duplicate. Missing/corrupt config falls back to a new uuid.
+HOST_ID=""
+if [ -f "$CONF_DIR/config.json" ]; then
+  HOST_ID="$(python3 -c 'import json,sys
+try:
+    print(json.load(open(sys.argv[1])).get("host_id") or "")
+except Exception:
+    print("")' "$CONF_DIR/config.json" 2>/dev/null)"
+  [ -n "$HOST_ID" ] && echo "living-install: reusing existing host_id=$HOST_ID"
+fi
+[ -z "$HOST_ID" ] && HOST_ID="$(python3 -c 'import uuid; print(uuid.uuid4())')"
 
 echo "living-install: OS=$OS label=$LABEL host_id=$HOST_ID"
 

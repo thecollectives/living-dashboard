@@ -30,6 +30,7 @@ GRANT SELECT, INSERT ON scan_staging TO living_writer;
 GRANT USAGE, SELECT ON SEQUENCE scan_staging_staging_id_seq TO living_writer;
 GRANT SELECT, INSERT, UPDATE ON hosts TO living_writer;
 GRANT SELECT, INSERT ON metrics_ts TO living_writer;
+GRANT SELECT ON host_revocations TO living_writer;
 GRANT EXECUTE ON FUNCTION claim_enrollment_token(TEXT, TEXT, TEXT, TEXT, TEXT)
   TO living_writer;
 -- Anon (pre-enrollment) may only claim tokens.

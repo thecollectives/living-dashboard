@@ -170,6 +170,18 @@ CREATE TABLE IF NOT EXISTS enrollment_tokens (
 );
 
 -- ============================================================
+-- Revoked hosts: dashboard "remove host" records the host_id here so the
+-- deletion sticks — living-sync skips its staged scans and the claim RPC
+-- rejects re-enrollment with the same host_id. Re-enrolling must mint a
+-- fresh install (new host_id) after a delete.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS host_revocations (
+  host_id    TEXT PRIMARY KEY,
+  revoked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reason     TEXT
+);
+
+-- ============================================================
 -- Agent ingest staging: agents POST here; living-sync processes.
 -- kind: deep | metrics
 -- ============================================================
@@ -204,6 +216,9 @@ DECLARE
   v_hash TEXT := encode(digest(p_token, 'sha256'), 'hex');
   v_row  enrollment_tokens%ROWTYPE;
 BEGIN
+  IF EXISTS (SELECT 1 FROM host_revocations WHERE host_id = p_host_id) THEN
+    RETURN jsonb_build_object('ok', FALSE, 'error', 'host revoked');
+  END IF;
   SELECT * INTO v_row FROM enrollment_tokens WHERE token_hash = v_hash;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', FALSE, 'error', 'unknown token');

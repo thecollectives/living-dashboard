@@ -17,8 +17,20 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
-$HostId = [guid]::NewGuid().ToString()
 $AgentDir = "C:\ProgramData\living-agent"
+# Re-enroll reuse: keep the existing host_id so the dashboard sees the same
+# host instead of a duplicate. Missing/corrupt config falls back to new guid.
+$HostId = [guid]::NewGuid().ToString()
+$cfgPath = "$AgentDir\config.json"
+if (Test-Path $cfgPath) {
+    try {
+        $existing = Get-Content $cfgPath -Raw | ConvertFrom-Json
+        if ($existing.host_id) {
+            $HostId = [string]$existing.host_id
+            Write-Host "living-install: reusing existing host_id=$HostId"
+        }
+    } catch { Write-Warning "living-install: existing config unreadable, generating new host_id" }
+}
 Write-Host "living-install: label=$Label host_id=$HostId"
 
 New-Item -ItemType Directory -Force -Path $AgentDir | Out-Null
