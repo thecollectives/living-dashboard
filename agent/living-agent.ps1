@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  living-agent.ps1 — Living Dashboard watcher for Windows.
+  living-agent.ps1 - Living Dashboard watcher for Windows.
   Installed by install.ps1 as a Scheduled Task (at startup + repeats).
   First run claims the enrollment token; then posts metrics every 5 min
   and a deep scan hourly to {API}/scan_staging.
@@ -108,7 +108,7 @@ function Get-DeepScan {
         }
     } catch {}
 
-    # installed software (registry — never Win32_Product)
+    # installed software (registry - never Win32_Product)
     $uninstPaths = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
                      'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
     $seen = @{}

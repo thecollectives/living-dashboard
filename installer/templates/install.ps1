@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-  living-agent installer — Windows (PowerShell 5.1+).
+  living-agent installer - Windows (PowerShell 5.1+).
   Served from http://100.104.7.48:8092/install/install.ps1 (self-hosted, tailnet-only).
   TEMPLATE: __LIVING_JWT__ is injected by build-dist.sh on the spark.
 .DESCRIPTION
@@ -59,10 +59,10 @@ for ($i = 0; $i -lt 18; $i++) {
         $r = Invoke-RestMethod -Uri "$Api/hosts?host_id=eq.$HostId&select=host_id" `
             -UseBasicParsing -TimeoutSec 10
         if ($r -and $r.host_id -eq $HostId) {
-            Write-Host "living-install: OK — host '$Label' checked in as $HostId"
+            Write-Host "living-install: OK - host '$Label' checked in as $HostId"
             exit 0
         }
     } catch {}
     Start-Sleep -Seconds 10
 }
-Write-Warning "installed but no check-in seen after 3 min — check the LivingAgent task and token."
+Write-Warning "installed but no check-in seen after 3 min - check the LivingAgent task and token."
