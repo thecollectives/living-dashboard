@@ -267,7 +267,9 @@ def run_job(job, req):
         p = subprocess.Popen(
             [ENROLL_SCRIPT, target, req["label"]],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, env=env, start_new_session=True,
+            # binary mode: remote PowerShell output (CLIXML etc.) is not
+            # guaranteed UTF-8 — decode defensively below, never crash
+            bufsize=1, env=env, start_new_session=True,
         )
         job["stage"] = "starting"
         deadline = time.time() + JOB_TIMEOUT_S
@@ -290,10 +292,10 @@ def run_job(job, req):
                 if p.poll() is not None:
                     break
                 continue
-            line = out.readline()
-            if line == "":
+            raw = out.readline()
+            if raw == b"":
                 break
-            line = line.rstrip("\n")
+            line = raw.decode("utf-8", errors="replace").rstrip("\n")
             if len(job["log"]) < MAX_LOG_LINES:
                 job["log"].append(line)
             st = stage_from_line(line)
@@ -302,7 +304,8 @@ def run_job(job, req):
         # drain anything left, then reap
         try:
             rest, _ = p.communicate(timeout=10)
-            for line in rest.splitlines():
+            for raw in (rest or b"").splitlines():
+                line = raw.decode("utf-8", errors="replace")
                 if len(job["log"]) < MAX_LOG_LINES:
                     job["log"].append(line)
         except subprocess.TimeoutExpired:

@@ -122,7 +122,9 @@ else
   cat > "$launcher" <<EOF
 \$ErrorActionPreference = 'Stop'
 Invoke-WebRequest -UseBasicParsing '$INSTALL_BASE/install.ps1' -OutFile "\$env:TEMP\living-install.ps1"
-& "\$env:TEMP\living-install.ps1" -Token '$TOKEN' -Label '$LABEL'
+# stringify all output streams: keeps redirected stdout as plain text
+# instead of CLIXML-serialized objects
+& "\$env:TEMP\living-install.ps1" -Token '$TOKEN' -Label '$LABEL' *>&1 | ForEach-Object { "\$_" }
 EOF
   b64="$(iconv -f UTF-8 -t UTF-16LE "$launcher" | base64 -w0)"
   rm -f "$launcher"
