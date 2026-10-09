@@ -59,6 +59,9 @@ echo "enroll: token minted for '$LABEL'"
 
 # 2. detect OS
 OS="$(ssh "${SSH_ARGS[@]}" "$TARGET" "uname -s" 2>/dev/null || true)"
+case "$OS" in
+  MSYS_*|MINGW*|CYGWIN*) OS="Windows" ;;  # Git-Bash/MSYS SSH shell on Windows
+esac
 if [ -z "$OS" ]; then
   # maybe Windows (OpenSSH -> cmd.exe): uname fails, try ver via powershell
   if ssh "${SSH_ARGS[@]}" "$TARGET" \
@@ -109,13 +112,23 @@ remote_install_linux() {
 if [ "$OS" = "Linux" ] || [ "$OS" = "Darwin" ]; then
   remote_install_linux
 else
-  # Windows: download + run elevated. Assumes the SSH user can elevate
-  # (UAC prompt may appear on the console for non-elevated sessions).
+  # Windows: ship a tiny launcher as base64 UTF-16LE and run it via
+  # powershell -EncodedCommand. This dodges every quoting/path-conversion
+  # layer between here and PowerShell (local bash, ssh, MSYS/Cygwin shells),
+  # which mangle backslashes and $env: references in inline -Command strings.
+  # Assumes the SSH user can elevate (UAC prompt may appear on the console
+  # for non-elevated sessions).
+  launcher="$(mktemp /tmp/living-launcher.XXXXXX.ps1)"
+  cat > "$launcher" <<EOF
+\$ErrorActionPreference = 'Stop'
+Invoke-WebRequest -UseBasicParsing '$INSTALL_BASE/install.ps1' -OutFile "\$env:TEMP\living-install.ps1"
+& "\$env:TEMP\living-install.ps1" -Token '$TOKEN' -Label '$LABEL'
+EOF
+  b64="$(iconv -f UTF-8 -t UTF-16LE "$launcher" | base64 -w0)"
+  rm -f "$launcher"
+  [ -n "$b64" ] || { echo "enroll: cannot encode windows launcher" >&2; exit 1; }
   ssh "${SSH_ARGS[@]}" "$TARGET" \
-    "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { \
-      Invoke-WebRequest -UseBasicParsing '$INSTALL_BASE/install.ps1' \
-        -OutFile \\\$env:TEMP\\living-install.ps1; \
-      & \\\$env:TEMP\\living-install.ps1 -Token '$TOKEN' -Label '$LABEL' }\""
+    "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $b64"
 fi
 
 # 4. verify check-in
